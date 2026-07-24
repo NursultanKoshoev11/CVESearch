@@ -1,0 +1,11 @@
+BEGIN;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS user_roles;
+DROP TABLE IF EXISTS role_permissions;
+DROP TABLE IF EXISTS permissions;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS tenants;
+DROP FUNCTION IF EXISTS reject_audit_mutation();
+DROP FUNCTION IF EXISTS app_current_tenant_id();
+COMMIT;

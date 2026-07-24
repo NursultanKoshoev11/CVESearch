@@ -1,0 +1,25 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.runtime/
+
+# Go
+bin/
+coverage.out
+*.test
+
+# Node / Next.js
+node_modules/
+apps/web/.next/
+apps/web/out/
+npm-debug.log*
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated reports
+reports/

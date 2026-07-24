@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify authoritative specification
+        run: ./scripts/verify-spec.sh
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Resolve Go dependency lock
+        run: go mod tidy
+
+      - name: Check Go formatting
+        run: |
+          test -z "$(gofmt -l apps internal packages tests)"
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+
+      - name: Go lint
+        run: golangci-lint run ./...
+
+      - name: Go unit tests
+        run: go test -race -count=1 ./apps/... ./internal/... ./packages/...
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+
+      - name: Resolve npm dependency lock
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Frontend lint
+        run: npm run web:lint
+
+      - name: Frontend typecheck
+        run: npm run web:typecheck
+
+      - name: Frontend tests
+        run: npm run web:test
+
+      - name: Frontend build
+        run: npm run web:build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+
+      - name: Validate OpenAPI 3.1
+        run: npx --yes @stoplight/spectral-cli@6.15.0 lint docs/api/openapi.yaml --ruleset .spectral.yaml
+
+      - name: Validate Docker Compose
+        run: |
+          ./scripts/dev-env.sh
+          docker compose config --quiet
+
+      - name: Upload generated dependency locks
+        uses: actions/upload-artifact@v6
+        with:
+          name: dependency-locks
+          path: |
+            go.mod
+            go.sum
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Build containers
+        run: docker compose build api web
+
+      - name: Start full Foundation stack
+        run: docker compose up -d --wait
+
+      - name: Full-stack smoke tests
+        run: |
+          curl --fail --silent --show-error http://localhost:8080/health/live | grep '"status":"alive"'
+          curl --fail --silent --show-error http://localhost:8080/health/ready | grep '"status":"ready"'
+          curl --fail --silent --show-error http://localhost:3000 | grep 'CVE Atlas'
+          curl --fail --silent --show-error -D /tmp/login.headers -o /dev/null \
+            'http://localhost:8080/api/v1/auth/login?return_to=%2F'
+          grep -q '^HTTP/.* 302' /tmp/login.headers
+          grep -qi '^location: http://keycloak.localhost:8081/' /tmp/login.headers
+
+      - name: Live dependency integration tests
+        run: |
+          set -a
+          . ./.env
+          set +a
+          export DATABASE_URL="postgres://${POSTGRES_APP_USER}:${POSTGRES_APP_PASSWORD}@127.0.0.1:5432/${POSTGRES_DB}?sslmode=disable"
+          export REDIS_URL="redis://127.0.0.1:6379/0"
+          export NEO4J_URI="neo4j://127.0.0.1:7687"
+          export S3_ENDPOINT="127.0.0.1:9000"
+          go test -tags=integration -count=1 ./tests/integration/...
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=300
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans

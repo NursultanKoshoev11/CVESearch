@@ -1,0 +1,17 @@
+{
+  "name": "cve-atlas",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "web:dev": "npm --workspace apps/web run dev",
+    "web:build": "npm --workspace apps/web run build",
+    "web:lint": "npm --workspace apps/web run lint",
+    "web:typecheck": "npm --workspace apps/web run typecheck",
+    "web:test": "npm --workspace apps/web run test"
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  }
+}

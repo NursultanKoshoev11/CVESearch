@@ -1,0 +1,29 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gosec
+    - misspell
+    - noctx
+    - revive
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unused
+  settings:
+    gosec:
+      excludes:
+        - G104
+formatters:
+  enable:
+    - gofmt
+    - goimports
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
